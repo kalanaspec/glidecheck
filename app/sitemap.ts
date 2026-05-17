@@ -7,12 +7,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const { data: mice } = await supabase.from('mice').select('name');
     const { data: pads } = await supabase.from('pads').select('name');
 
-    // 💡 වෙනස කලේ මෙතනයි: Array එක කෙලින්ම MetadataRoute.Sitemap ටයිප් එකෙන් Define කරා
+    // 💡 'daily' සහ 'weekly' වලට Next.js sitemap types ම කෙලින්ම assign කරනවා
     const routes: MetadataRoute.Sitemap = [
         {
             url: baseUrl,
             lastModified: new Date(),
-            changeFrequency: 'daily',
+            changeFrequency: 'daily' as 'daily',
             priority: 1,
         },
     ];
@@ -26,8 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
                 routes.push({
                     url: `${baseUrl}/${mouseSlug}-with-${padSlug}`,
                     lastModified: new Date(),
-                    // දැන් මෙතන කිසිම Type error එකක් එන්නේ නැහැ මචං
-                    changeFrequency: 'weekly',
+                    changeFrequency: 'weekly' as 'weekly', // 👈 මෙතන type එක strict කරා
                     priority: 0.8,
                 });
             });
