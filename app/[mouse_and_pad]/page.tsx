@@ -1,56 +1,64 @@
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { Metadata } from 'next';
 
 interface PageProps {
-    searchParams: Promise<{ mouse?: string; pad?: string }>;
+    params: Promise<{ mouse_and_pad: string }>;
 }
 
-export default async function CompatibilityPage({ searchParams }: PageProps) {
-    // 1. Await searchParams as required in Next.js 15+
-    const params = await searchParams;
-    const mouseId = params.mouse;
-    const padId = params.pad;
+// 🌐 1. මේකෙන් තමයි Google එකට සයිට් එකේ Title එකයි Description එකයි dynamic විදිහට පෙන්වන්නේ (SEO Metadata)
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+    const { mouse_and_pad } = await params;
+    const parts = mouse_and_pad.split('-with-');
+    const mouseName = parts[0]?.replace(/-/g, ' ');
+    const padName = parts[1]?.replace(/-/g, ' ');
 
-    if (!mouseId || !padId) {
-        return (
-            <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
-                <div className="text-center bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md">
-                    <h1 className="text-2xl font-bold text-rose-400 mb-4">Invalid Request</h1>
-                    <p className="text-slate-400 mb-6">Please select both a gaming mouse and a mouse pad first.</p>
-                    <Link href="/" className="text-cyan-400 hover:underline">← Go Back Home</Link>
-                </div>
-            </main>
-        );
-    }
+    return {
+        title: `${mouseName?.toUpperCase()} + ${padName?.toUpperCase()} Glass Pad Compatibility & LOD Settings`,
+        description: `Check if the ${mouseName} spins out or tracks well on the ${padName} glass mouse pad. View community diagnostics and recommended skates.`
+    };
+}
 
-    // 2. Fetch Mouse and Pad details using their strict UUIDs
+export default async function CompatibilityPage({ params }: PageProps) {
+    const { mouse_and_pad } = await params;
+
+    // 2. URL එකෙන් එන ස්ලග් එක කඩනවා (e.g., "vxe-mad-r-with-skypad-3-0-xl")
+    const parts = mouse_and_pad.split('-with-');
+    const mouseSlug = parts[0]?.replace(/-/g, ' ');
+    const padSlug = parts[1]?.replace(/-/g, ' ');
+
+    // 3. Supabase එකෙන් නම බෝල්ඩ් කරලා (ILIKE) සර්ච් කරලා Row එක ගන්නවා
     const { data: mouseData } = await supabase
         .from('mice')
         .select('*')
-        .eq('id', mouseId)
+        .ilike('name', `%${mouseSlug}%`)
         .single();
 
     const { data: padData } = await supabase
         .from('pads')
         .select('*')
-        .eq('id', padId)
+        .ilike('name', `%${padSlug}%`)
         .single();
 
-    // 3. Fetch specific Compatibility row matching both foreign keys
-    const { data: compatibilityResult } = await supabase
-        .from('compatibility')
-        .select('*')
-        .eq('mouse_id', mouseId)
-        .eq('pad_id', padId)
-        .single();
+    let compatibilityResult = null;
 
-    // Fallback state if the database entries don't exist
+    if (mouseData && padData) {
+        const { data } = await supabase
+            .from('compatibility')
+            .select('*')
+            .eq('mouse_id', mouseData.id)
+            .eq('pad_id', padData.id)
+            .single();
+
+        compatibilityResult = data;
+    }
+
     if (!mouseData || !padData) {
         return (
             <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
                 <div className="text-center bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md">
-                    <h1 className="text-2xl font-bold text-rose-400 mb-4">Hardware Not Found</h1>
-                    <p className="text-slate-400 mb-6">The selected hardware components could not be found in our database.</p>
+                    <h1 className="text-2xl font-bold text-rose-400 mb-4">Combo Not Found</h1>
+                    <p className="text-slate-400 mb-6">We haven't indexed this specific mouse and pad combination yet.</p>
                     <Link href="/" className="text-cyan-400 hover:underline">← Go Back Home</Link>
                 </div>
             </main>
@@ -65,7 +73,6 @@ export default async function CompatibilityPage({ searchParams }: PageProps) {
                     ← Back to Checker
                 </Link>
 
-                {/* Dynamic Title loaded with exact names */}
                 <h1 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 mb-6">
                     {mouseData.name} + {padData.name} Compatibility
                 </h1>
@@ -85,15 +92,13 @@ export default async function CompatibilityPage({ searchParams }: PageProps) {
                     </div>
                 </div>
 
-                {/* Live Compatibility Diagnostics from Supabase */}
                 <div className="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-4">
                     <div className="flex items-center gap-3">
                         <span className="text-slate-400 text-sm">Glide Status:</span>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            compatibilityResult?.status === 'Stable' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                compatibilityResult?.status === 'Warning' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                                    compatibilityResult?.status === 'Unstable' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
-                                        'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' // Default fallback
+                            compatibilityResult?.status === 'Stable' || !compatibilityResult ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                compatibilityResult.status === 'Warning' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                    'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                         }`}>
               {compatibilityResult?.status || 'Stable'}
             </span>
@@ -109,11 +114,10 @@ export default async function CompatibilityPage({ searchParams }: PageProps) {
                     <div>
                         <p className="text-slate-400 text-xs font-medium">Community Diagnostics:</p>
                         <p className="text-sm text-slate-300 mt-1 italic leading-relaxed bg-slate-900/50 p-3 rounded-lg border border-slate-900">
-                            "{compatibilityResult?.community_notes || 'No specific tracking anomalies or spin-outs reported yet for this combination.'}"
+                            "{compatibilityResult?.community_notes || 'No tracking anomalies or spin-outs reported by the community for this setup.'}"
                         </p>
                     </div>
                 </div>
-
             </div>
         </main>
     );

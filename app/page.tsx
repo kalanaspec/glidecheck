@@ -60,8 +60,18 @@ export default function Home() {
     const checkCompatibility = () => {
         if (!selectedMouse || !selectedPad) return;
 
-        // IDs දෙක කෙලින්ම URL Query parameters විදිහට යවනවා
-        router.push(`/compatibility?mouse=${selectedMouse}&pad=${selectedPad}`);
+        // 1. Dropdown එකෙන් සිලෙක්ට් කරපු ID එකට අදාළ Object එක හොයාගන්නවා
+        const mouseObj = mice.find(m => m.id === selectedMouse);
+        const padObj = pads.find(p => p.id === selectedPad);
+
+        if (mouseObj && padObj) {
+            // 2. නම් ටික URL එකට ගැලපෙන විදිහට Clean කරගන්නවා (Slugify): "VXE MAD R+" -> "vxe-mad-r"
+            const mouseSlug = mouseObj.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const padSlug = padObj.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+            // 3. ලස්සන SEO URL එකකට පුෂ් කරනවා!
+            router.push(`/${mouseSlug}-with-${padSlug}`);
+        }
     };
 
     return (
